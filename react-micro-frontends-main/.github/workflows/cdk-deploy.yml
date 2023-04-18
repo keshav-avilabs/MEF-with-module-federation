@@ -1,0 +1,91 @@
+name: cdk-deploy
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "deploy/**"
+      - "container/**"
+      - "landing/**"
+      - "header/**"
+      - "dashboard/**"
+      - ".github/workflows/cdk-deploy.yml"
+
+defaults:
+  run:
+    working-directory: deploy
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Install container dependencies
+        run: npm install
+        working-directory: container
+
+      - name: Build container dist
+        run: npm run build
+        working-directory: container
+        env:
+          PRODUCTION_DOMAIN: ${{ secrets.PRODUCTION_DOMAIN }}
+
+      - name: Install landing dependencies
+        run: npm install
+        working-directory: landing
+
+      - name: Build landing dist
+        run: npm run build
+        working-directory: landing
+
+
+      - name: Install auth dependencies
+        run: npm install
+        working-directory: auth
+
+      - name: Build auth dist
+        run: npm run build
+        working-directory: auth
+
+      - name: Install header dependencies
+        run: npm install
+        working-directory: header
+
+      - name: Build header dist
+        run: npm run build
+        working-directory: header
+
+      - name: Install dashboard dependencies
+        run: npm install
+        working-directory: dashboard
+
+      - name: Build dashboard dist
+        run: npm run build
+        working-directory: dashboard
+
+      - name: Install deploy dependencies
+        run: npm install
+
+      - name: Run cdk deployment
+        run: npm run deploy
+
+      - name: ACTIONS_ALLOW_UNSECURE_COMMANDS
+        run: echo 'ACTIONS_ALLOW_UNSECURE_COMMANDS=true' >> $GITHUB_ENV
+
+      - name: Run cache invalidation
+        run: aws cloudfront create-invalidation --distribution-id ${{ secrets.AWS_DISTRIBUTION_ID }} --paths "/auth/remoteEntry.js" "/landing/remoteEntry.js" "/index.html" "/header/remoteEntry.js" "/dashboard/remoteEntry.js"
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
